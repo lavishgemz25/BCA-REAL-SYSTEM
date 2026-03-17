@@ -3,6 +3,13 @@ import express from 'express';
 import cors from 'cors';
 
 const app = express();
+app.get("/", (req, res) => {
+  res.send("BCA DEAL SYSTEM LIVE");
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
 app.use(cors());
 app.use(express.json());
 
