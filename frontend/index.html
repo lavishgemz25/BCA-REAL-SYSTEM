@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BCA Deal Machine</title>
+    <style>
+      :root {
+        --bg: #0b0b0d;
+        --panel: #121215;
+        --panel-2: #18181d;
+        --text: #f6f2e8;
+        --muted: #bdb5a6;
+        --gold: #d4a62a;
+        --border: #2a2a31;
+      }
+      body { margin:0; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+      .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      .hero { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom: 24px; }
+      .badge { padding: 6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--gold); }
+      .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+      .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:18px; }
+      .label { color:var(--muted); font-size:13px; margin-bottom:8px; }
+      .value { font-size:28px; font-weight:700; }
+      .section-title { margin: 24px 0 12px; color: var(--gold); }
+      table { width:100%; border-collapse: collapse; }
+      th, td { padding: 12px; border-bottom:1px solid var(--border); text-align:left; }
+      th { color: var(--muted); font-weight:600; }
+      .alerts li { margin:8px 0; }
+      .muted { color: var(--muted); }
+      .error { color: #ff8f8f; }
+      .ok { color: #8ee59a; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="hero">
+        <div>
+          <h1>BCA Deal Machine</h1>
+          <div class="muted">Free-stack backend + Airtable live dashboard</div>
+        </div>
+        <div class="badge" id="status">Checking backend…</div>
+      </div>
+
+      <div class="grid" id="metrics"></div>
+
+      <div class="card">
+        <h3 class="section-title">Pipeline Summary</h3>
+        <div id="stages" class="muted">Loading…</div>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title">Action Required</h3>
+        <ul id="alerts" class="alerts"></ul>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title">Recent Records</h3>
+        <table>
+          <thead>
+            <tr><th>Address</th><th>Stage</th><th>Offer</th><th>Closed</th><th>Priority</th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const API = localStorage.getItem('BCA_API_URL') || 'http://localhost:3000';
+
+      async function load() {
+        try {
+          const health = await fetch(`${API}/api/health`).then(r => r.json());
+          document.getElementById('status').textContent = health.configured ? 'Backend Connected' : 'Missing Secrets';
+          document.getElementById('status').className = health.configured ? 'badge ok' : 'badge error';
+
+          const data = await fetch(`${API}/api/dashboard`).then(async r => {
+            const body = await r.json();
+            if (!r.ok) throw new Error(body.error || 'Dashboard load failed');
+            return body;
+          });
+
+          const metrics = [
+            ['Total Leads', data.metrics.totalLeads],
+            ['High Priority', data.metrics.highPriority],
+            ['Paid', data.metrics.paid]
+          ];
+          document.getElementById('metrics').innerHTML = metrics.map(([k,v]) => `
+            <div class="card"><div class="label">${k}</div><div class="value">${v}</div></div>
+          `).join('');
+
+          document.getElementById('stages').innerHTML = Object.entries(data.stageCounts)
+            .map(([k,v]) => `<div>${k}: <strong>${v}</strong></div>`).join('');
+
+          document.getElementById('alerts').innerHTML = data.alerts.length
+            ? data.alerts.map(a => `<li>${a.text}</li>`).join('')
+            : '<li>No alerts right now.</li>';
+
+          document.getElementById('rows').innerHTML = data.recentDeals.length
+            ? data.recentDeals.map(d => `<tr><td>${d.address || '-'}</td><td>${d.stage || '-'}</td><td>${d.offerSent || '-'}</td><td>${d.closed || '-'}</td><td>${d.priorityScore}</td></tr>`).join('')
+            : '<tr><td colspan="5">No records found.</td></tr>';
+        } catch (err) {
+          document.getElementById('status').textContent = 'Load Failed';
+          document.getElementById('status').className = 'badge error';
+          document.getElementById('metrics').innerHTML = `<div class="card error">${err.message}</div>`;
+          document.getElementById('stages').textContent = 'Unable to load stage data.';
+          document.getElementById('alerts').innerHTML = '<li>Unable to load alerts.</li>';
+          document.getElementById('rows').innerHTML = '<tr><td colspan="5">Backend unavailable.</td></tr>';
+        }
+      }
+      load();
+    </script>
+  </body>
+</html>
